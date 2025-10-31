@@ -7,165 +7,63 @@ on:
   push:
     branches:
       - master
+      - release-test
     tags:
-      - "v*" # 只有正式版本标签才触发构建
+      - 'v*'  # 添加对标签的监听，所有以v开头的标签都会触发构建
+
+
 
 env:
-  # Tauri 自动更新签名密钥
-  TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-  TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-  # macOS 代码签名 (保留原有的 Xcode 参数)
-  XCODE_APP_TEAM_ID: ${{ secrets.XCODE_APP_TEAM_ID }}
-  XCODE_APP_LOADER_EMAIL: ${{ secrets.XCODE_APP_LOADER_EMAIL }}
-  XCODE_APP_LOADER_PASSWORD: ${{ secrets.XCODE_APP_LOADER_PASSWORD }}
-  BUILD_CERTIFICATE_BASE64: ${{ secrets.CSC_LINK }}
-  P12_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-  # Windows 代码签名
+  ELECTRON_OUTPUT_PATH: interface/dist_electron
   CSC_LINK: ${{ secrets.CSC_LINK }}
   CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
+
 jobs:
-  pre-build:
-    name: pre-build go client
-    runs-on: ubuntu-latest
-    outputs:
-      go-client-artifacts: ${{ steps.upload-go-client.outputs.artifact-name }}
+  release:
+    name: build and release electron app
+    runs-on: ${{ matrix.os }}
 
-    steps:
-      - name: Check out git repository
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.21"
-
-      - name: Build Go client for all platforms
-        run: make build-all
-        working-directory: go-client
-
-      - name: Upload Go client artifacts
-        id: upload-go-client
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-client-binaries
-          path: go-client/build/
-          retention-days: 1
-
-  build:
-    name: build tauri app
-    needs: pre-build
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            args: ""
+        os: [ubuntu-latest, macos-11, windows-latest]
 
-    runs-on: ${{ matrix.os }}
     steps:
       - name: Check out git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Download Go client artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/setup-go@v3
         with:
-          name: go-client-binaries
-          path: go-client/build/
+          go-version: 1.18
 
-      - name: Install Go client for Windows
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
+      - name: build go client
+        run: make build-client
         working-directory: go-client
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+            node-version: '16.x'
+
+      - name: Install system deps
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          New-Item -ItemType Directory -Force -Path ..\src-tauri\resources\bin | Out-Null
-          Remove-Item -Recurse -Force ..\src-tauri\resources\bin\windows -ErrorAction SilentlyContinue
-          Copy-Item -Path .\build\windows -Destination ..\src-tauri\resources\bin\ -Recurse -Force
-          Copy-Item -Path config.json -Destination ..\src-tauri\resources\bin\ -Force
+            sudo apt-get install --no-install-recommends -y icnsutils graphicsmagick xz-utils
 
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
-        with:
-          version: 10.20.0
-          run_install: false
+      - name: Yarn install
+        run: |
+          yarn
+          yarn global add xvfb-maybe
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "23"
-          cache: "pnpm"
+      - name: Build  & release app
+        run: |
+          yarn build
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           XCODE_APP_TEAM_ID: ${{ secrets.XCODE_APP_TEAM_ID }}
           XCODE_APP_LOADER_EMAIL: ${{ secrets.XCODE_APP_LOADER_EMAIL }}
           XCODE_APP_LOADER_PASSWORD: ${{ secrets.XCODE_APP_LOADER_PASSWORD }}
           BUILD_CERTIFICATE_BASE64: ${{ secrets.CSC_LINK }}
           P12_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        with:
-          args: ${{ matrix.args }}
-          tagName: ${{ github.ref_name }}
-          releaseName: "JumpServer Client v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
-          prerelease: false
-
-      - name: Upload Windows bundle
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: jumpserver-client-windows
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/*.exe
-          if-no-files-found: warn
-
-  release:
-    name: create latest.json
-    runs-on: ubuntu-latest
-    needs: [pre-build, build]
-    if: startsWith(github.ref, 'refs/tags/')
-
-    steps:
-      - name: Check out git repository
-        uses: actions/checkout@v4
-
-      - name: Generate latest.json
-        run: |
-          echo '{
-            "version": "${{ github.ref_name }}",
-            "notes": "Release ${{ github.ref_name }}",
-            "pub_date": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
-            "platforms": {
-              "windows-x86_64": {
-                "signature": "",
-                "url": "https://github.com/jumpserver/clients/releases/download/${{ github.ref_name }}/JumpServerClient_${{ github.ref_name }}_x64.exe"
-              },
-              "windows-x86_64-msi": {
-                "signature": "",
-                "url": "https://github.com/jumpserver/clients/releases/download/${{ github.ref_name }}/JumpServerClient_${{ github.ref_name }}_x64.msi"
-              }
-            }
-          }' > latest.json
-
-      - name: Upload latest.json to release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: latest.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
