@@ -55,10 +55,12 @@ jobs:
         run: |
           yarn
           yarn global add xvfb-maybe
+        working-directory: ui
 
       - name: Build  & release app
         run: |
           yarn build
+        working-directory: ui
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
