@@ -360,68 +360,75 @@ const changeCustomClientFile = () => {
 };
 
 const addCustomRDPClient = async () => {
-  if (!newClient.value.display_name || !newClient.value.path) {
-    message.warning('Please fill in Display Name and Application Path');
-    return;
+  try {
+    if (!newClient.value.display_name || !newClient.value.path) {
+      message.warning('Please fill in Display Name and Application Path');
+      return;
+    }
+
+    const platformKey = platform.value || 'Windows';
+
+    // Generate unique name from display_name
+    const name = newClient.value.display_name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+    newClient.value.name = `custom_${name}_${Date.now()}`;
+
+    // Load whole platform block and current remotedesktop list
+    const platformData = (await conf.get(platformKey)) || {};
+    const currentList = platformData.remotedesktop || [];
+
+    // Add new client to the list
+    const clientToAdd: IClient = {
+      ...newClient.value,
+      name: newClient.value.name,
+      display_name: newClient.value.display_name,
+      path: newClient.value.path,
+      protocol: newClient.value.protocol || ['rdp'],
+      arg_format: newClient.value.arg_format || '{file}',
+      type: 'remotedesktop',
+      match_first: newClient.value.match_first || ['rdp'],
+      is_internal: false,
+      is_default: false,
+      is_set: true,
+      comment: newClient.value.comment || { en: '', zh: '' },
+      download_url: newClient.value.download_url || ''
+    } as IClient;
+
+    currentList.push(clientToAdd);
+
+    // Save updated list back into the platform block and persist
+    platformData.remotedesktop = currentList;
+    await conf.set(platformKey, platformData);
+
+    // Refresh the UI
+    windowsOptions.value = currentList;
+    currentOption.value = windowsOptions.value;
+
+    // Reset form and close modal
+    newClient.value = {
+      name: '',
+      display_name: '',
+      path: '',
+      protocol: ['rdp'],
+      arg_format: '{file}',
+      type: 'remotedesktop',
+      match_first: ['rdp'],
+      is_internal: false,
+      is_default: false,
+      is_set: false,
+      comment: { en: '', zh: '' },
+      download_url: ''
+    };
+    showAddCustomClientModal.value = false;
+
+    message.success('Custom RDP client added successfully');
+  } catch (e) {
+    console.error(e);
+    message.error('Failed to add client. Please try again.');
   }
-
-  // Generate unique name from display_name
-  const name = newClient.value.display_name
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-  newClient.value.name = `custom_${name}_${Date.now()}`;
-
-  // Load whole platform block and current remotedesktop list
-  const platformData = (await conf.get(platform.value)) || {};
-  const currentList = platformData.remotedesktop || [];
-
-  // Add new client to the list
-  const clientToAdd: IClient = {
-    ...newClient.value,
-    name: newClient.value.name,
-    display_name: newClient.value.display_name,
-    path: newClient.value.path,
-    protocol: newClient.value.protocol || ['rdp'],
-    arg_format: newClient.value.arg_format || '{file}',
-    type: 'remotedesktop',
-    match_first: newClient.value.match_first || ['rdp'],
-    is_internal: false,
-    is_default: false,
-    is_set: true, // Enable by default
-    comment: newClient.value.comment || { en: '', zh: '' },
-    download_url: newClient.value.download_url || ''
-  } as IClient;
-
-  currentList.push(clientToAdd);
-
-  // Save updated list back into the platform block and persist
-  platformData.remotedesktop = currentList;
-  await conf.set(platform.value, platformData);
-
-  // Refresh the UI
-  windowsOptions.value = currentList;
-  currentOption.value = windowsOptions.value;
-
-  // Reset form and close modal
-  newClient.value = {
-    name: '',
-    display_name: '',
-    path: '',
-    protocol: ['rdp'],
-    arg_format: '{file}',
-    type: 'remotedesktop',
-    match_first: ['rdp'],
-    is_internal: false,
-    is_default: false,
-    is_set: false,
-    comment: { en: '', zh: '' },
-    download_url: ''
-  };
-  showAddCustomClientModal.value = false;
-
-  message.success('Custom RDP client added successfully');
 };
 
 /**
