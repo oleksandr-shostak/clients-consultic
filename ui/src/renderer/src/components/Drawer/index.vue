@@ -314,19 +314,21 @@ const enabledItems = computed(() => {
 });
 
 const handleItemChange = async (item: IClient) => {
-  const configName = `${platform.value}.${item.type}`;
-  const newList =
+  // Rebuild the specific list for the item's type
+  const updatedList =
     currentOption.value
       ?.filter(option => option.type === item.type)
       .map(option => {
         if (option.name !== item.name) {
-          // 过滤掉 `item.match_first` 中的匹配项
           option.match_first = option.match_first.filter(i => !item.match_first.includes(i));
         }
         return toRaw(option);
       }) || [];
 
-  await conf.set(configName, newList);
+  // Persist the entire platform block to keep reads/writes consistent
+  const platformData = (await conf.get(platform.value)) || {};
+  platformData[item.type] = updatedList;
+  await conf.set(platform.value, platformData);
 };
 
 const openFile = (item: IClient) => {
@@ -371,9 +373,9 @@ const addCustomRDPClient = async () => {
     .replace(/^_|_$/g, '');
   newClient.value.name = `custom_${name}_${Date.now()}`;
 
-  // Get current remotedesktop list
-  const configName = `${platform.value}.remotedesktop`;
-  const currentList = (await conf.get(configName)) || [];
+  // Load whole platform block and current remotedesktop list
+  const platformData = (await conf.get(platform.value)) || {};
+  const currentList = platformData.remotedesktop || [];
 
   // Add new client to the list
   const clientToAdd: IClient = {
@@ -394,8 +396,9 @@ const addCustomRDPClient = async () => {
 
   currentList.push(clientToAdd);
 
-  // Save to config
-  await conf.set(configName, currentList);
+  // Save updated list back into the platform block and persist
+  platformData.remotedesktop = currentList;
+  await conf.set(platform.value, platformData);
 
   // Refresh the UI
   windowsOptions.value = currentList;
