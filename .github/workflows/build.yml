@@ -50,10 +50,11 @@ jobs:
       # Signing: use secrets-provided PFX (base64) and password if present
       # If you want unsigned builds, remove the env below and set CSC_IDENTITY_AUTO_DISCOVERY=false
 
-      - name: Build  & release app
+      - name: Build app (no publish)
         shell: pwsh
         run: |
-          yarn build:win
+          yarn build
+          npx electron-builder --win --publish never
         working-directory: ui
 
         env:
