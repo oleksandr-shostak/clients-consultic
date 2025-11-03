@@ -54,11 +54,11 @@ jobs:
         shell: pwsh
         run: |
           yarn build
-          npx electron-builder --win --publish never --config.generateUpdatesFiles=false
+          npx electron-builder --win --publish never
         working-directory: ui
 
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Do NOT pass GITHUB_TOKEN to ensure publish pipeline stays disabled
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
@@ -67,5 +67,8 @@ jobs:
         with:
           name: electron-windows-artifacts
           path: |
-            ui/dist/**
+            ui/dist/*.exe
+            ui/dist/*.msi
+            ui/dist/*.zip
+            ui/dist/win-*/**
           if-no-files-found: warn
