@@ -54,7 +54,7 @@ jobs:
         shell: pwsh
         run: |
           yarn build
-          npx electron-builder --win --publish never
+          npx electron-builder --win --publish never --config.generateUpdatesFiles=false
         working-directory: ui
 
         env:
