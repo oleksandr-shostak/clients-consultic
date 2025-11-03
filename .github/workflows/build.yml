@@ -22,12 +22,7 @@ env:
 jobs:
   release:
     name: build and release electron app
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-11, windows-latest]
+    runs-on: windows-latest
 
     steps:
       - name: Check out git repository
@@ -45,11 +40,6 @@ jobs:
         uses: actions/setup-node@v3
         with:
             node-version: '20.x'
-
-      - name: Install system deps
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-            sudo apt-get install --no-install-recommends -y icnsutils graphicsmagick xz-utils
 
       - name: Yarn install
         run: |
@@ -69,3 +59,12 @@ jobs:
           XCODE_APP_LOADER_PASSWORD: ${{ secrets.XCODE_APP_LOADER_PASSWORD }}
           BUILD_CERTIFICATE_BASE64: ${{ secrets.CSC_LINK }}
           P12_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-windows-artifacts
+          path: |
+            ui/release/**
+            ui/dist/**
+          if-no-files-found: warn
