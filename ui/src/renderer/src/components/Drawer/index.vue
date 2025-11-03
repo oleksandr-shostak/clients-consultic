@@ -125,27 +125,7 @@
               </n-collapse>
             </n-card>
 
-            <!-- Add Custom RDP Client Button (Windows only) -->
-            <n-card
-              v-if="route.name === 'Windows'"
-              :bordered="false"
-              size="small"
-              header-style="font-size: 13px;"
-              class="rounded-[10px] !bg-secondary"
-            >
-              <n-button
-                type="primary"
-                ghost
-                block
-                size="small"
-                @click="showAddCustomClientModal = true"
-              >
-                <template #icon>
-                  <n-icon :component="Add20Regular" size="16" />
-                </template>
-                {{ t('Setting.AddCustomRDPClient') }}
-              </n-button>
-            </n-card>
+            
 
             <n-card
               :bordered="false"
@@ -186,57 +166,12 @@
     </n-drawer-content>
   </n-drawer>
 
-  <!-- Add Custom RDP Client Modal -->
-  <n-modal v-model:show="showAddCustomClientModal" preset="card" title="Add Custom RDP Client" style="width: 500px">
-    <n-form :model="newClient" label-placement="left" label-width="120px">
-      <n-form-item label="Display Name" required>
-        <n-input v-model:value="newClient.display_name" placeholder="e.g., My Custom RDP Client" />
-      </n-form-item>
-      <n-form-item label="Application Path" required>
-        <n-input-group>
-          <n-input v-model:value="newClient.path" placeholder="Full path to .exe file" />
-          <input
-            id="custom-rdp-client-file"
-            type="file"
-            name="filename"
-            accept=".exe"
-            style="display: none"
-            @change="changeCustomClientFile"
-          />
-          <n-button type="primary" ghost @click="openCustomClientFile">
-            <n-icon :component="Folder28Regular" size="14" />
-          </n-button>
-        </n-input-group>
-      </n-form-item>
-      <n-form-item label="Argument Format">
-        <n-input
-          v-model:value="newClient.arg_format"
-          placeholder="e.g., {file} or /v:{host}:{port}"
-        />
-        <template #feedback>
-          <n-text depth="3" style="font-size: 11px">
-            Available variables: {file}, {host}, {port}, {username}, {value}
-          </n-text>
-        </template>
-      </n-form-item>
-      <n-form-item label="Comment">
-        <n-input v-model:value="newClient.comment.en" type="textarea" :rows="2" />
-      </n-form-item>
-    </n-form>
-    <template #footer>
-      <n-space justify="end">
-        <n-button @click="showAddCustomClientModal = false">Cancel</n-button>
-        <n-button type="primary" :disabled="!platform || saving" @click="addCustomRDPClient">
-          {{ saving ? 'Saving…' : 'Add Client' }}
-        </n-button>
-      </n-space>
-    </template>
-  </n-modal>
+  
 </template>
 
 <script setup lang="ts">
 import mittBus from '@renderer/eventBus';
-import { Folder28Regular, Add20Regular } from '@vicons/fluent';
+import { Folder28Regular } from '@vicons/fluent';
 import { ArrowBarRight } from '@vicons/tabler';
 
 import { computed, nextTick, onBeforeUnmount, onMounted, Ref, ref, toRaw, watch } from 'vue';
@@ -275,23 +210,7 @@ const platform = ref('');
 
 const conf = new Conf();
 
-// Custom RDP Client Modal State
-const showAddCustomClientModal = ref(false);
-const saving = ref(false);
-const newClient = ref<Partial<IClient>>({
-  name: '',
-  display_name: '',
-  path: '',
-  protocol: ['rdp'],
-  arg_format: '{file}',
-  type: 'remotedesktop',
-  match_first: ['rdp'],
-  is_internal: false,
-  is_default: false,
-  is_set: false,
-  comment: { en: '', zh: '' },
-  download_url: ''
-});
+// (Custom RDP Client modal removed)
 
 const updateCurrentOptions = (newValue: string | null) => {
   switch (newValue) {
@@ -353,90 +272,7 @@ const copyToClipboard = (text: string) => {
     .catch();
 };
 
-const openCustomClientFile = () => {
-  window.document.getElementById('custom-rdp-client-file')!.click();
-};
-
-const changeCustomClientFile = () => {
-  const fileInput = window.document.getElementById('custom-rdp-client-file') as HTMLInputElement;
-  newClient.value.path = fileInput?.files?.[0]?.path || '';
-};
-
-const addCustomRDPClient = async () => {
-  try {
-    saving.value = true;
-    if (!newClient.value.display_name || !newClient.value.path) {
-      message.warning('Please fill in Display Name and Application Path');
-      saving.value = false;
-      return;
-    }
-
-    const platformKey = platform.value || 'Windows';
-
-    // Generate unique name from display_name
-    const name = newClient.value.display_name
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '');
-    newClient.value.name = `custom_${name}_${Date.now()}`;
-
-    // Load whole platform block and current remotedesktop list
-    const existing = (await conf.get(platformKey)) || {};
-    const currentList = Array.isArray(existing.remotedesktop) ? [...existing.remotedesktop] : [];
-
-    // Add new client to the list
-    const clientToAdd: IClient = {
-      ...newClient.value,
-      name: newClient.value.name,
-      display_name: newClient.value.display_name,
-      path: newClient.value.path,
-      protocol: newClient.value.protocol || ['rdp'],
-      arg_format: newClient.value.arg_format || '{file}',
-      type: 'remotedesktop',
-      match_first: newClient.value.match_first || ['rdp'],
-      is_internal: false,
-      is_default: false,
-      is_set: true,
-      comment: newClient.value.comment || { en: '', zh: '' },
-      download_url: newClient.value.download_url || ''
-    } as IClient;
-
-    currentList.push(clientToAdd);
-
-    // Save updated list back into the platform block and persist
-    const nextData = { ...existing, remotedesktop: currentList };
-    await conf.set(platformKey, nextData);
-
-    // Refresh the UI
-    windowsOptions.value = currentList;
-    currentOption.value = windowsOptions.value;
-
-    // Reset form and close modal
-    newClient.value = {
-      name: '',
-      display_name: '',
-      path: '',
-      protocol: ['rdp'],
-      arg_format: '{file}',
-      type: 'remotedesktop',
-      match_first: ['rdp'],
-      is_internal: false,
-      is_default: false,
-      is_set: false,
-      comment: { en: '', zh: '' },
-      download_url: ''
-    };
-    showAddCustomClientModal.value = false;
-
-    message.success('Custom RDP client added successfully');
-  } catch (e) {
-    console.error(e);
-    message.error('Failed to add client. Please try again.');
-  } finally {
-    saving.value = false;
-  }
-};
+// (Custom RDP Client handlers removed)
 
 /**
  * @description 关闭抽屉
