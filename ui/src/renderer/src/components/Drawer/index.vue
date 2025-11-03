@@ -226,7 +226,9 @@
     <template #footer>
       <n-space justify="end">
         <n-button @click="showAddCustomClientModal = false">Cancel</n-button>
-        <n-button type="primary" @click="addCustomRDPClient">Add Client</n-button>
+        <n-button type="primary" :disabled="!platform || saving" @click="addCustomRDPClient">
+          {{ saving ? 'Saving…' : 'Add Client' }}
+        </n-button>
       </n-space>
     </template>
   </n-modal>
@@ -275,6 +277,7 @@ const conf = new Conf();
 
 // Custom RDP Client Modal State
 const showAddCustomClientModal = ref(false);
+const saving = ref(false);
 const newClient = ref<Partial<IClient>>({
   name: '',
   display_name: '',
@@ -361,8 +364,10 @@ const changeCustomClientFile = () => {
 
 const addCustomRDPClient = async () => {
   try {
+    saving.value = true;
     if (!newClient.value.display_name || !newClient.value.path) {
       message.warning('Please fill in Display Name and Application Path');
+      saving.value = false;
       return;
     }
 
@@ -377,8 +382,8 @@ const addCustomRDPClient = async () => {
     newClient.value.name = `custom_${name}_${Date.now()}`;
 
     // Load whole platform block and current remotedesktop list
-    const platformData = (await conf.get(platformKey)) || {};
-    const currentList = platformData.remotedesktop || [];
+    const existing = (await conf.get(platformKey)) || {};
+    const currentList = Array.isArray(existing.remotedesktop) ? [...existing.remotedesktop] : [];
 
     // Add new client to the list
     const clientToAdd: IClient = {
@@ -400,8 +405,8 @@ const addCustomRDPClient = async () => {
     currentList.push(clientToAdd);
 
     // Save updated list back into the platform block and persist
-    platformData.remotedesktop = currentList;
-    await conf.set(platformKey, platformData);
+    const nextData = { ...existing, remotedesktop: currentList };
+    await conf.set(platformKey, nextData);
 
     // Refresh the UI
     windowsOptions.value = currentList;
@@ -428,6 +433,8 @@ const addCustomRDPClient = async () => {
   } catch (e) {
     console.error(e);
     message.error('Failed to add client. Please try again.');
+  } finally {
+    saving.value = false;
   }
 };
 
