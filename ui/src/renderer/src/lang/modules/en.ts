@@ -100,7 +100,8 @@ export default {
     Advanced: 'Advanced options',
     Charset: 'Charset:',
     BackspaceAsCtrlH: 'Terminal Backspace As Ctrl + H',
-    Resolution: 'Resolution:'
+    Resolution: 'Resolution:',
+    AddCustomRDPClient: 'Add Custom RDP Client'
   },
   Message: {
     FailedRetrieveAssetDataList: 'Failed to Retrieve Asset Data List!',

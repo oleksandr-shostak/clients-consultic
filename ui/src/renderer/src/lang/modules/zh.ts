@@ -100,7 +100,8 @@ export default {
     Advanced: '高级选项',
     Charset: '字符集:',
     BackspaceAsCtrlH: '字符终端 Backspace As Ctrl + H',
-    Resolution: '分辨率:'
+    Resolution: '分辨率:',
+    AddCustomRDPClient: '添加自定义 RDP 客户端'
   },
   Message: {
     FailedRetrieveAssetDataList: '获取资产数据列表失败!',
